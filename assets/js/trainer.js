@@ -89,16 +89,20 @@
   $("dtab-overall").addEventListener("click", () => setDetailTab("overall"));
   $("dtab-history").addEventListener("click", () => setDetailTab("history"));
 
-  function openDetail(name) {
+  async function openDetail(name) {
     currentName = name;
-    currentHistCount = (lastByName[name] || []).length;
     $("detail-name").textContent = name;
     $("detail").classList.remove("hidden");
     setDetailTab("overall");
     $("report-body").innerHTML = "<p class='muted small'>Loading report…</p>";
+    $("history-body").innerHTML = "<p class='muted small'>Loading…</p>";
+    $("detail").scrollIntoView({ behavior: "smooth" });
+    // Always re-fetch this trainee's history on open, so a just-finished interview
+    // shows without needing a roster Refresh.
+    try { const h = await API.history(name); if (h && h.ok) lastByName[name] = h.history || []; } catch (e) {}
+    currentHistCount = (lastByName[name] || []).length;
     renderHistory(lastByName[name] || []);
     loadReport(name);
-    $("detail").scrollIntoView({ behavior: "smooth" });
   }
   $("detail-close").addEventListener("click", () => $("detail").classList.add("hidden"));
 
