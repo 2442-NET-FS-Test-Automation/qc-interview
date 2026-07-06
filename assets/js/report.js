@@ -71,7 +71,9 @@ window.QCReport = (function () {
     const dpts = DIM_KEYS.map((k, i) => pt(i, r * ((dims[k] || 0) / 100)).map((x) => x.toFixed(1)).join(",")).join(" ");
     const poly = "<polygon points='" + dpts + "' fill='" + fill + "' fill-opacity='0.22' stroke='" + stroke + "' stroke-width='2' stroke-linejoin='round'/>";
     const dots = DIM_KEYS.map((k, i) => { const [x, y] = pt(i, r * ((dims[k] || 0) / 100)); return "<circle cx='" + x.toFixed(1) + "' cy='" + y.toFixed(1) + "' r='3' fill='" + stroke + "'/>"; }).join("");
-    return "<svg viewBox='0 0 " + S + " " + S + "' width='100%' style='max-width:" + S + "px' role='img' aria-label='Metric radar'>" + g + axes + poly + dots + labels + "</svg>";
+    // Pad the viewBox horizontally so long axis labels (Completeness/Terminology) don't clip.
+    const P = 58;
+    return "<svg viewBox='" + (-P) + " -6 " + (S + 2 * P) + " " + (S + 12) + "' width='100%' style='max-width:" + (S + 2 * P) + "px' role='img' aria-label='Metric radar'>" + g + axes + poly + dots + labels + "</svg>";
   }
 
   // Question-by-question — each an expandable card revealing its metrics + feedback.
