@@ -2,7 +2,6 @@
 (function () {
   // ---- guard ----
   if (!API.LS.token || !API.LS.code) { location.href = "index.html"; return; }
-  if (API.LS.role === "trainer") { /* trainers can still practice; allow */ }
 
   const $ = (id) => document.getElementById(id);
   const show = (el) => el.classList.remove("hidden");
@@ -11,6 +10,8 @@
   function screen(name) { for (const k in screens) screens[k].classList.toggle("hidden", k !== name); window.scrollTo(0, 0); }
 
   $("who").textContent = API.LS.name ? "Signed in as " + API.LS.name : "";
+  // Trainers get a link back to the dashboard; their runs are practice (see backend).
+  if (API.LS.role === "trainer") { const d = $("dash-link"); if (d) d.classList.remove("hidden"); }
   $("logout").addEventListener("click", () => { API.logout(); location.href = "index.html"; });
 
   // ---- state ----
