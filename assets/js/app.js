@@ -160,7 +160,7 @@
     } catch (e) { pickErr("Couldn't reach the server. Check your connection."); btn.disabled = false; btn.textContent = "Start interview →"; }
   });
 
-  const TOPIC_LABEL = { "web-frontend": "Web", "react-msa": "React / MSA", "dotnet-testing": "Testing", "selenium-azure": "Selenium / Azure", "devops": "DevOps", "ai-engineering": "AI" };
+  const TOPIC_LABEL = { "web-frontend": "Web", "react-msa": "React / MSA", "dotnet-testing": "Testing", "selenium-azure": "Selenium / Azure", "devops": "DevOps", "ai-engineering": "AI", "foundations": "Foundations" };
   (CONFIG.QC_MODULES || []).forEach((m) => { TOPIC_LABEL[m.topic] = m.code; });
 
   function renderQuestion() {
