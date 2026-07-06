@@ -1,105 +1,147 @@
-// Interview runner: mode pick → record/transcribe/edit/submit per question → results.
+// Interview runner: dynamic QC/Day selection → record/transcribe/edit/submit → results.
 (function () {
-  // ---- guard ----
   if (!API.LS.token || !API.LS.code) { location.href = "index.html"; return; }
-
   const $ = (id) => document.getElementById(id);
-  const show = (el) => el.classList.remove("hidden");
-  const hide = (el) => el.classList.add("hidden");
+  const show = (el) => el && el.classList.remove("hidden");
+  const hide = (el) => el && el.classList.add("hidden");
+  const esc = QCReport.esc, scoreClass = QCReport.scoreClass;
   const screens = { pick: $("screen-pick"), run: $("screen-run"), done: $("screen-done") };
   function screen(name) { for (const k in screens) screens[k].classList.toggle("hidden", k !== name); window.scrollTo(0, 0); }
 
   $("who").textContent = API.LS.name ? "Signed in as " + API.LS.name : "";
-  // Trainers get a link back to the dashboard; their runs are practice (see backend).
-  if (API.LS.role === "trainer") { const d = $("dash-link"); if (d) d.classList.remove("hidden"); }
+  if (API.LS.role === "trainer") show($("dash-link"));
   $("logout").addEventListener("click", () => { API.logout(); location.href = "index.html"; });
 
   // ---- state ----
-  let questions = [], interviewId = null, cur = 0, runLabel = "";
-  let last = null;                 // {blob, durationMs} from the recorder
+  let questions = [], interviewId = null, cur = 0;
+  let sel = null;              // current selection {mode, qc?, day?, title, topics, statLabel}
+  let quota = { practice: true, remaining: 99, max: 4 };
+  let lastReport = null;       // built at finish for download
+  let last = null;             // {blob, durationMs}
   const recorder = QCRecorder.create();
 
-  // ---- mic status ----
-  (function micStatus() {
-    if (!QCRecorder.supported()) {
-      $("mic-status").innerHTML = "⚠️ This browser can't record audio — you'll be able to type your answers instead. For the best experience use Chrome, Edge, or Safari.";
-    } else {
-      $("mic-status").innerHTML = "🎙️ You'll be asked for microphone access when the interview starts. You can re-record any answer.";
-    }
+  // ---- quota ----
+  async function loadQuota() {
+    try {
+      const s = await API.session(API.LS.code);
+      if (s && s.ok) {
+        quota = { practice: !!s.practice, remaining: s.attemptsRemaining, max: s.maxPerDay || 4, used: s.attemptsUsed || 0 };
+      }
+    } catch (e) {}
+    renderQuota();
+  }
+  function renderQuota() {
+    const lbl = $("quota-label"), bar = $("quota-bar");
+    if (quota.practice) { lbl.textContent = "Unlimited practice (trainer / tester account)"; bar.style.width = "0%"; bar.parentElement.style.display = "none"; return; }
+    bar.parentElement.style.display = "";
+    lbl.innerHTML = "<strong>" + quota.remaining + "</strong> of " + quota.max + " attempts left today";
+    bar.style.width = Math.round(((quota.max - quota.remaining) / quota.max) * 100) + "%";
+    bar.style.background = quota.remaining === 0 ? "var(--bad)" : "var(--accent)";
+  }
+  function attemptsLeft() { return quota.practice || quota.remaining > 0; }
+
+  // ---- segmented ----
+  $("seg-qc").addEventListener("click", () => setMode("qc"));
+  $("seg-day").addEventListener("click", () => setMode("day"));
+  function setMode(m) {
+    $("seg-qc").setAttribute("aria-selected", m === "qc"); $("seg-day").setAttribute("aria-selected", m === "day");
+    $("panel-qc").classList.toggle("hidden", m !== "qc"); $("panel-day").classList.toggle("hidden", m !== "day");
+    clearSelection();
+  }
+
+  // ---- build QC cards ----
+  (function buildQC() {
+    $("qc-cards").innerHTML = (CONFIG.QC_MODULES || []).map((m) => {
+      const chips = m.topics.slice(0, 4).map((t) => "<span class='chip'>" + esc(t) + "</span>").join("") +
+        (m.topics.length > 4 ? "<span class='chip'>+" + (m.topics.length - 4) + "</span>" : "");
+      return "<button class='selcard' data-qc='" + esc(m.topic) + "'>" +
+        "<div class='row' style='gap:10px'><span class='code'>" + esc(m.code) + "</span><span class='chip accent'>" + esc(m.difficulty) + "</span></div>" +
+        "<div class='title'>" + esc(m.label) + "</div>" +
+        "<div class='muted small' style='margin:-2px 0 2px'>" + esc(m.blurb) + "</div>" +
+        "<div class='meta'>" + CONFIG.INTERVIEW_LEN + " questions <span class='dot'>·</span> ~" + CONFIG.EST_MIN + " min</div>" +
+        "<div class='chips'>" + chips + "</div></button>";
+    }).join("");
+    $("qc-cards").querySelectorAll("[data-qc]").forEach((b) => b.addEventListener("click", () => {
+      const m = CONFIG.QC_MODULES.find((x) => x.topic === b.dataset.qc);
+      selectCard(b, "qc-cards");
+      sel = { mode: "qc", qc: m.topic, title: m.code + " · " + m.label, topics: m.topics, statLabel: m.difficulty };
+      fillExpect();
+    }));
   })();
 
-  // ---- build pickers ----
-  (function buildPickers() {
-    const qc = $("qc-choices");
-    (CONFIG.QC_MODULES || []).forEach((m) => {
-      const b = document.createElement("button");
-      b.className = "btn secondary";
-      b.textContent = m.label;
-      b.addEventListener("click", () => start({ qc: m.topic }, m.label));
-      qc.appendChild(b);
-    });
-    const weekSel = $("week"), daySel = $("day");
-    (CONFIG.WEEKS || []).forEach((w) => {
-      const o = document.createElement("option"); o.value = w.week; o.textContent = w.label; o.dataset.days = JSON.stringify(w.days);
-      weekSel.appendChild(o);
-    });
-    function fillDays() {
-      const opt = weekSel.options[weekSel.selectedIndex];
-      const days = opt ? JSON.parse(opt.dataset.days) : [];
-      daySel.innerHTML = "";
-      days.forEach((d) => { const o = document.createElement("option"); o.value = d; o.textContent = "Day " + d; daySel.appendChild(o); });
-    }
-    weekSel.addEventListener("change", fillDays); fillDays();
-    $("start-day").addEventListener("click", () => {
-      const w = weekSel.value, d = daySel.value;
-      const day = "w" + String(w).padStart(2, "0") + "d" + d;
-      const label = "Week " + w + " · Day " + d;
-      start({ day }, label);
-    });
+  // ---- build Day cards ----
+  (function buildDays() {
+    $("day-weeks").innerHTML = (CONFIG.CURRICULUM || []).map((w) => {
+      const cards = (w.days || []).map((d) => {
+        const chips = d.topics.slice(0, 3).map((t) => "<span class='chip'>" + esc(t) + "</span>").join("") +
+          (d.topics.length > 3 ? "<span class='chip'>+" + (d.topics.length - 3) + "</span>" : "");
+        return "<button class='selcard' data-day='" + esc(d.id) + "'>" +
+          "<div class='row' style='gap:10px'><span class='code'>D" + d.d + "</span></div>" +
+          "<div class='title'>" + esc(d.title) + "</div>" +
+          "<div class='chips'>" + chips + "</div></button>";
+      }).join("");
+      return "<div><div class='tiny muted' style='text-transform:uppercase; letter-spacing:.05em; margin:4px 2px 8px'>" + esc(w.label) + "</div><div class='cards'>" + cards + "</div></div>";
+    }).join("");
+    $("day-weeks").querySelectorAll("[data-day]").forEach((b) => b.addEventListener("click", () => {
+      let day = null, wk = null;
+      for (const w of CONFIG.CURRICULUM) { const dd = w.days.find((x) => x.id === b.dataset.day); if (dd) { day = dd; wk = w; break; } }
+      selectCard(b, "day-weeks");
+      sel = { mode: "day", day: day.id, week: wk.week, title: "Week " + wk.week + " · Day " + day.d + " — " + day.title, topics: day.topics, statLabel: wk.label.split("·")[0].trim() };
+      fillExpect();
+    }));
   })();
+
+  function selectCard(btn, containerId) {
+    $(containerId).querySelectorAll(".selcard").forEach((c) => c.setAttribute("aria-pressed", "false"));
+    btn.setAttribute("aria-pressed", "true");
+  }
+  function clearSelection() { sel = null; hide($("expect")); document.querySelectorAll(".selcard").forEach((c) => c.setAttribute("aria-pressed", "false")); }
+
+  function fillExpect() {
+    $("expect-title").textContent = sel.title;
+    $("expect-badge").textContent = sel.statLabel || "";
+    $("expect-stats").innerHTML = "<span>🎤 " + CONFIG.INTERVIEW_LEN + " questions</span><span>⏱ ~" + CONFIG.EST_MIN + " min</span>" +
+      (sel.mode === "day" ? "<span>📚 cumulative through this day</span>" : "<span>🎯 full competency exam</span>");
+    $("expect-topics").innerHTML = sel.topics.map((t) => "<span class='chip accent'>" + esc(t) + "</span>").join("");
+    const btn = $("start-btn");
+    if (!attemptsLeft()) { btn.disabled = true; btn.textContent = "No attempts left today"; }
+    else { btn.disabled = false; btn.textContent = "Start interview →"; }
+    hide($("pick-err")); show($("expect"));
+    $("expect").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
 
   function pickErr(msg) { const e = $("pick-err"); e.textContent = msg; show(e); }
 
-  async function start(opts, label) {
-    hide($("pick-err"));
-    runLabel = label;
+  // ---- start ----
+  $("start-btn").addEventListener("click", async () => {
+    if (!sel) return;
+    if (!attemptsLeft()) { pickErr("You've used all of today's attempts. Come back tomorrow!"); return; }
+    const btn = $("start-btn"); btn.disabled = true; btn.textContent = "Starting…";
+    const opts = sel.mode === "qc" ? { qc: sel.qc } : { day: sel.day };
     try {
       const r = await API.startInterview(opts);
-      if (!r || !r.ok) { pickErr(r && r.error === "cap_reached" ? "You've hit today's practice limit. Come back tomorrow!" : "Couldn't start the interview. Try again."); return; }
-      questions = r.questions || [];
-      interviewId = r.interviewId;
-      cur = 0;
-      if (!questions.length) { pickErr("No questions available for that selection yet."); return; }
-      screen("run");
-      renderQuestion();
-    } catch (e) { pickErr("Couldn't reach the server. Check your connection."); }
-  }
+      if (!r || !r.ok) { pickErr(r && r.error === "cap_reached" ? "You've hit today's attempt limit." : "Couldn't start the interview. Try again."); btn.disabled = false; btn.textContent = "Start interview →"; return; }
+      questions = r.questions || []; interviewId = r.interviewId; cur = 0;
+      if (!questions.length) { pickErr("No questions available for that selection yet."); btn.disabled = false; btn.textContent = "Start interview →"; return; }
+      screen("run"); renderQuestion();
+    } catch (e) { pickErr("Couldn't reach the server. Check your connection."); btn.disabled = false; btn.textContent = "Start interview →"; }
+  });
 
   const TOPIC_LABEL = {};
-  (CONFIG.QC_MODULES || []).forEach((m) => { TOPIC_LABEL[m.topic] = m.label.split("·")[0].trim(); });
+  (CONFIG.QC_MODULES || []).forEach((m) => { TOPIC_LABEL[m.topic] = m.code; });
 
   function renderQuestion() {
-    const q = questions[cur];
-    last = null;
-    $("run-label").textContent = runLabel;
+    const q = questions[cur]; last = null;
+    $("run-label").textContent = sel ? sel.title : "";
     $("run-count").textContent = "Question " + (cur + 1) + " of " + questions.length;
     $("run-bar").style.width = Math.round((cur / questions.length) * 100) + "%";
     $("q-topic").textContent = TOPIC_LABEL[q.topic] || q.topic;
     $("q-type").textContent = q.type === "scenario" ? "Applied scenario" : "Concept";
     $("q-prompt").textContent = q.prompt;
-    // reset answer/feedback UI
-    hide($("fb-card")); show($("answer-card"));
-    hide($("transcript-block")); hide($("transcribe-status"));
-    $("transcript").value = "";
-    $("rec-state").textContent = "";
-    const recBtn = $("rec-btn");
-    recBtn.textContent = "● Record answer"; recBtn.disabled = false; recBtn.classList.remove("danger");
-    show(recBtn);
-    if (!QCRecorder.supported()) {
-      // Typing fallback: reveal the transcript box straight away.
-      show($("transcript-block")); hide(recBtn);
-      $("rec-state").textContent = "";
-    }
+    hide($("fb-card")); show($("answer-card")); hide($("transcript-block")); hide($("transcribe-status"));
+    $("transcript").value = ""; $("rec-state").textContent = "";
+    const recBtn = $("rec-btn"); recBtn.textContent = "● Record answer"; recBtn.disabled = false; recBtn.classList.remove("danger"); show(recBtn);
+    if (!QCRecorder.supported()) { show($("transcript-block")); hide(recBtn); }
   }
 
   // ---- recording ----
@@ -107,28 +149,18 @@
     const btn = $("rec-btn");
     if (!recorder.recording()) {
       try { await recorder.ensureMic(); }
-      catch (e) {
-        $("rec-state").textContent = "Microphone blocked — you can type your answer instead.";
-        show($("transcript-block")); hide(btn); return;
-      }
-      recorder.start();
-      btn.textContent = "■ Stop recording"; btn.classList.add("danger");
-      $("rec-state").innerHTML = '<span class="dot rec"></span> Recording… speak your answer.';
+      catch (e) { $("rec-state").textContent = "Microphone blocked — you can type your answer instead."; show($("transcript-block")); hide(btn); return; }
+      recorder.start(); btn.textContent = "■ Stop recording"; btn.classList.add("danger");
+      $("rec-state").innerHTML = "<span class='recdot'></span> Recording… speak your answer.";
     } else {
-      btn.disabled = true; btn.textContent = "Stopping…";
-      last = await recorder.stop();
-      $("rec-state").textContent = "";
-      await transcribe();
+      btn.disabled = true; btn.textContent = "Stopping…"; last = await recorder.stop(); $("rec-state").textContent = ""; await transcribe();
     }
   });
-
   $("rerecord-btn").addEventListener("click", () => {
-    hide($("transcript-block"));
-    const btn = $("rec-btn");
+    hide($("transcript-block")); const btn = $("rec-btn");
     btn.textContent = "● Record answer"; btn.disabled = false; btn.classList.remove("danger"); show(btn);
     $("transcript").value = ""; last = null;
   });
-
   async function transcribe() {
     if (!last || !last.blob) { show($("transcript-block")); return; }
     show($("transcribe-status"));
@@ -136,17 +168,13 @@
       const r = await API.transcribe(last.blob);
       $("transcript").value = (r && r.ok && r.text) ? r.text : "";
       if (!r || !r.ok) $("rec-state").textContent = "Transcription had trouble — please check/type your answer below.";
-    } catch (e) {
-      $("rec-state").textContent = "Transcription failed — you can type your answer below.";
-    } finally {
-      hide($("transcribe-status")); show($("transcript-block"));
-    }
+    } catch (e) { $("rec-state").textContent = "Transcription failed — you can type your answer below."; }
+    finally { hide($("transcribe-status")); show($("transcript-block")); }
   }
 
   // ---- submit ----
   $("submit-btn").addEventListener("click", async () => {
-    const q = questions[cur];
-    const text = ($("transcript").value || "").trim();
+    const q = questions[cur]; const text = ($("transcript").value || "").trim();
     if (!text) { $("rec-state").textContent = "Please record or type an answer first."; return; }
     const btn = $("submit-btn"); btn.disabled = true; btn.textContent = "Scoring…";
     const delivery = QCRecorder.metrics(text, last ? last.durationMs : null);
@@ -154,59 +182,81 @@
       const r = await API.judge({ interviewId, questionId: q.id, transcript: text, delivery });
       if (!r || !r.ok) { $("rec-state").textContent = "Scoring failed — try submitting again."; return; }
       showFeedback(r);
-    } catch (e) {
-      $("rec-state").textContent = "Couldn't reach the server — try again.";
-    } finally { btn.disabled = false; btn.textContent = "Submit answer"; }
+    } catch (e) { $("rec-state").textContent = "Couldn't reach the server — try again."; }
+    finally { btn.disabled = false; btn.textContent = "Submit answer"; }
   });
 
-  function scoreClass(s) { return s >= 80 ? "hi" : s >= 65 ? "mid" : "lo"; }
-  function list(items) { return (items || []).map((x) => "<li>" + esc(x) + "</li>").join(""); }
-  function esc(s) { return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
-
+  function dimBars(dims) {
+    return Object.keys(dims || {}).map((k) => {
+      const v = dims[k];
+      return "<div class='dimrow'><span class='muted' style='text-transform:capitalize'>" + esc(k) + "</span>" +
+        "<span class='track'><i class='" + scoreClass(v) + "' style='width:" + v + "%'></i></span><span class='score " + scoreClass(v) + "'>" + v + "</span></div>";
+    }).join("");
+  }
   function showFeedback(r) {
-    hide($("answer-card"));
-    const fb = $("fb-card"); show(fb);
+    hide($("answer-card")); const fb = $("fb-card"); show(fb);
     const sc = $("fb-score"); sc.textContent = r.score + " / 100"; sc.className = "score " + scoreClass(r.score);
-    const dims = r.dims || {};
-    $("fb-dims").innerHTML = Object.keys(dims).map((k) => '<span class="pill">' + k + " " + dims[k] + "</span>").join(" ");
-    $("fb-strengths").innerHTML = (r.strengths && r.strengths.length) ? "<strong>Strengths</strong><ul>" + list(r.strengths) + "</ul>" : "";
-    $("fb-improvements").innerHTML = (r.improvements && r.improvements.length) ? "<strong>To improve</strong><ul>" + list(r.improvements) + "</ul>" : "";
+    $("fb-dims").innerHTML = dimBars(r.dims);
+    $("fb-strengths").innerHTML = (r.strengths && r.strengths.length) ? "<strong class='small'>Strengths</strong><ul class='small' style='margin:4px 0'>" + r.strengths.map((x) => "<li>" + esc(x) + "</li>").join("") + "</ul>" : "";
+    $("fb-improvements").innerHTML = (r.improvements && r.improvements.length) ? "<strong class='small'>To improve</strong><ul class='small' style='margin:4px 0'>" + r.improvements.map((x) => "<li>" + esc(x) + "</li>").join("") + "</ul>" : "";
     $("fb-model").textContent = r.modelAnswer || "";
     $("next-btn").textContent = (cur + 1 >= questions.length) ? "See results →" : "Next question →";
     fb.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+  $("next-btn").addEventListener("click", async () => { cur++; if (cur >= questions.length) await finish(); else renderQuestion(); });
 
-  $("next-btn").addEventListener("click", async () => {
-    cur++;
-    if (cur >= questions.length) { await finish(); }
-    else { renderQuestion(); }
-  });
-
+  // ---- finish / results ----
   async function finish() {
-    recorder.release();
-    screen("done");
-    $("done-summary").textContent = "Tallying your results…";
+    recorder.release(); screen("done"); $("done-summary").textContent = "Tallying your results…";
     try {
       const r = await API.finish(interviewId);
       if (!r || !r.ok) { $("done-summary").textContent = "Couldn't load your summary, but your answers were saved."; return; }
+      lastReport = { at: new Date().toISOString(), qc: sel && sel.qc, day: sel && sel.day, week: sel && sel.week, score: r.interviewScore, overall: r.overall, perQuestion: r.perQuestion };
       renderResults(r);
+      loadQuota();     // refresh remaining attempts
     } catch (e) { $("done-summary").textContent = "Couldn't reach the server for the summary."; }
   }
-
   function renderResults(r) {
-    $("done-score").innerHTML = '<span class="score ' + scoreClass(r.interviewScore) + '">' + r.interviewScore + "</span><span class='muted' style='font-size:1rem'> / 100</span>";
-    $("done-best").classList.toggle("hidden", !r.personalBestToday);
     const o = r.overall || {};
+    const sc = $("done-score"); sc.textContent = r.interviewScore; sc.className = "big score " + scoreClass(r.interviewScore);
+    $("done-verdict").textContent = QCReport.verdict(r.interviewScore);
+    $("done-best").classList.toggle("hidden", !r.personalBestToday);
     $("done-summary").textContent = o.summary || "";
-    $("done-strengths").innerHTML = list(o.topStrengths) || "<li class='muted'>—</li>";
-    $("done-focus").innerHTML = list(o.focusAreas) || "<li class='muted'>—</li>";
+    $("done-strengths").innerHTML = (o.topStrengths || []).map((x) => "<li>" + esc(x) + "</li>").join("") || "<li class='muted'>—</li>";
+    $("done-focus").innerHTML = (o.focusAreas || []).map((x) => "<li>" + esc(x) + "</li>").join("") || "<li class='muted'>—</li>";
     $("done-soft").textContent = o.softSkills || "—";
-    const rows = (r.perQuestion || []).map((p) =>
-      "<tr><td>" + (p.idx + 1) + "</td><td>" + esc((p.prompt || "").slice(0, 90)) + (p.prompt && p.prompt.length > 90 ? "…" : "") +
-      "</td><td class='score " + scoreClass(p.score) + "'>" + p.score + "</td></tr>"
-    ).join("");
-    $("done-per").innerHTML = "<table><thead><tr><th>#</th><th>Question</th><th>Score</th></tr></thead><tbody>" + rows + "</tbody></table>";
+    $("done-per").innerHTML = QCReport.perQuestionHTML(r.perQuestion);
+  }
+  $("download-btn").addEventListener("click", () => { if (lastReport) QCReport.download(lastReport, API.LS.name); });
+  $("again-btn").addEventListener("click", () => { screen("pick"); loadPast(); });
+
+  // ---- past interviews ----
+  async function loadPast() {
+    try {
+      const r = await API.myHistory();
+      const hist = (r && r.ok && r.history) ? r.history : [];
+      if (!hist.length) { hide($("past-card")); return; }
+      show($("past-card"));
+      $("past-list").innerHTML = hist.map((h, i) =>
+        "<div class='card' style='padding:14px'><div class='row between'>" +
+        "<div><strong>" + esc(QCReport.labelFor(h)) + "</strong><div class='tiny muted'>" + esc(QCReport.fmtDate(h.at)) + "</div></div>" +
+        "<div class='row'><span class='score " + scoreClass(h.score) + "' style='font-size:1.2rem'>" + h.score + "</span>" +
+        "<button class='btn ghost small' data-view='" + i + "'>View</button>" +
+        "<button class='btn ghost small' data-dl='" + i + "'>⬇</button></div></div>" +
+        "<div class='past-detail hidden' id='pd-" + i + "' style='margin-top:12px'></div></div>"
+      ).join("");
+      $("past-list").querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => {
+        const i = +b.dataset.view, box = $("pd-" + i);
+        if (!box.classList.contains("hidden")) { box.classList.add("hidden"); b.textContent = "View"; return; }
+        box.innerHTML = QCReport.summaryHTML(hist[i]) + "<details style='margin-top:8px'><summary class='small muted' style='cursor:pointer'>Question-by-question</summary><div class='stack' style='margin-top:8px'>" + QCReport.perQuestionHTML(hist[i].perQuestion) + "</div></details>";
+        box.classList.remove("hidden"); b.textContent = "Hide";
+      }));
+      $("past-list").querySelectorAll("[data-dl]").forEach((b) => b.addEventListener("click", () => QCReport.download(hist[+b.dataset.dl], API.LS.name)));
+    } catch (e) { hide($("past-card")); }
   }
 
-  $("again-btn").addEventListener("click", () => { screen("pick"); });
+  // ---- init ----
+  setMode("qc");
+  loadQuota();
+  loadPast();
 })();

@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>QC Interview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%A4%3C/text%3E%3C/svg%3E" />
   <link rel="stylesheet" href="assets/css/theme.css" />
 </head>
@@ -18,44 +19,66 @@
       </span>
     </div>
 
-    <!-- ===== Screen 1: mode picker ===== -->
+    <!-- ===== Screen 1: selection ===== -->
     <section id="screen-pick" class="stack">
       <div class="card stack">
         <div>
-          <h1>Choose your practice</h1>
-          <p class="muted">Answer out loud — the interview records you, transcribes it, and an AI coach gives feedback. Ten questions, about 15–20 minutes.</p>
+          <h1>What would you like to practice?</h1>
+          <p class="muted" style="margin:0">You'll answer 10 questions out loud. Each answer is transcribed and graded by an AI coach, with feedback you can review and download.</p>
         </div>
-        <div class="note info small">
-          <strong>How the recording works:</strong> tap record, speak your answer, tap stop. Your speech is transcribed for you.
-          You can lightly edit the transcript to fix <em>speech-to-text mistakes only</em> — don't rewrite or improve your answer.
-          Polishing the text instead of speaking won't help your feedback (and defeats the practice).
+        <div class="quota">
+          <span id="quota-label" class="small muted">Checking your attempts…</span>
+          <span class="bar"><i id="quota-bar" style="width:0%"></i></span>
         </div>
-        <div id="mic-status" class="small muted"></div>
       </div>
 
-      <div class="card stack">
-        <h2>Take a full QC exam</h2>
-        <p class="muted small">A 10-question interview drawn from one QC's material.</p>
-        <div id="qc-choices" class="choice"></div>
+      <div style="display:flex; justify-content:center;">
+        <div class="segmented" role="tablist" aria-label="Practice mode">
+          <button id="seg-qc"  role="tab" aria-selected="true">QC Competency</button>
+          <button id="seg-day" role="tab" aria-selected="false">Day-by-Day</button>
+        </div>
       </div>
 
-      <div class="card stack">
-        <h2>Practice a specific day</h2>
-        <p class="muted small">Loads that day's topics first, then backfills from earlier days. Weak areas from past interviews resurface automatically.</p>
-        <div class="grid cols2">
-          <div><label for="week">Week</label><select id="week"></select></div>
-          <div><label for="day">Day</label><select id="day"></select></div>
-        </div>
-        <button id="start-day" class="btn">Start day practice</button>
+      <!-- QC panel -->
+      <div id="panel-qc" class="stack">
+        <p class="small muted" style="margin:0 2px">Take a full exam for one competency area.</p>
+        <div id="qc-cards" class="cards"></div>
       </div>
-      <p id="pick-err" class="small hidden" style="color: var(--bad)"></p>
+
+      <!-- Day panel -->
+      <div id="panel-day" class="stack hidden">
+        <p class="small muted" style="margin:0 2px">Practice a specific curriculum day. It loads that day's topics first, then earlier material — and questions from topics you were weak on before resurface automatically.</p>
+        <div id="day-weeks" class="stack"></div>
+      </div>
+
+      <!-- what-to-expect + start -->
+      <div id="expect" class="expect stack hidden">
+        <div class="row between">
+          <h2 id="expect-title" style="margin:0"></h2>
+          <span id="expect-badge" class="chip accent"></span>
+        </div>
+        <div class="statstrip" id="expect-stats"></div>
+        <div>
+          <div class="tiny muted" style="text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px;">Topics you can expect</div>
+          <div id="expect-topics" class="chips"></div>
+        </div>
+        <div class="note info small">Answers are <strong>spoken</strong>. You can edit the transcript only to fix speech-to-text mistakes — don't rewrite your answer, as the feedback is on what you actually said.</div>
+        <button id="start-btn" class="btn big">Start interview →</button>
+        <p id="pick-err" class="small hidden" style="color: var(--bad); margin:0"></p>
+      </div>
+
+      <!-- past reports -->
+      <div id="past-card" class="card stack hidden">
+        <h2 style="margin:0">Your past interviews</h2>
+        <div id="past-list" class="stack"></div>
+      </div>
     </section>
 
-    <!-- ===== Screen 2: interview runner ===== -->
+    <!-- ===== Screen 2: runner ===== -->
     <section id="screen-run" class="stack hidden">
       <div class="card stack">
         <div class="row between">
-          <span id="run-label" class="pill"></span>
+          <span id="run-label" class="chip accent"></span>
           <span id="run-count" class="small muted"></span>
         </div>
         <div class="progress"><i id="run-bar" style="width:0%"></i></div>
@@ -63,7 +86,7 @@
           <span id="q-topic" class="pill"></span>
           <span id="q-type" class="pill"></span>
         </div>
-        <h2 id="q-prompt" style="font-size:1.25rem; line-height:1.4;"></h2>
+        <h2 id="q-prompt" style="font-size:1.28rem; line-height:1.4; font-weight:700;"></h2>
       </div>
 
       <div class="card stack" id="answer-card">
@@ -75,7 +98,7 @@
         <div id="transcript-block" class="stack hidden">
           <label for="transcript">Your answer (transcribed)</label>
           <textarea id="transcript" placeholder="Your transcribed answer appears here."></textarea>
-          <div class="note small">✏️ Edit only to fix <strong>speech-to-text errors</strong> (wrong words the transcriber misheard). Do not rewrite your answer to make it better — the feedback is on what you actually said.</div>
+          <div class="note small">✏️ Edit only to fix <strong>speech-to-text errors</strong> (words the transcriber misheard). Don't rewrite your answer to improve it — the feedback is on what you actually said.</div>
           <div class="row">
             <button id="submit-btn" class="btn">Submit answer</button>
             <button id="rerecord-btn" class="btn secondary">Re-record</button>
@@ -85,35 +108,39 @@
 
       <div id="fb-card" class="card stack hidden">
         <div class="row between">
-          <h3>Feedback</h3>
+          <h3 style="margin:0">Feedback</h3>
           <span id="fb-score" class="score"></span>
         </div>
-        <div id="fb-dims" class="row small muted"></div>
+        <div class="dims" id="fb-dims"></div>
         <div id="fb-strengths"></div>
         <div id="fb-improvements"></div>
-        <details><summary class="small muted">Show a strong model answer</summary><p id="fb-model" class="small" style="margin-top:8px"></p></details>
+        <details><summary class="small muted" style="cursor:pointer">Show a strong model answer</summary><p id="fb-model" class="small" style="margin-top:8px"></p></details>
         <button id="next-btn" class="btn">Next question →</button>
       </div>
     </section>
 
     <!-- ===== Screen 3: results ===== -->
     <section id="screen-done" class="stack hidden">
-      <div class="card stack" style="text-align:center">
-        <p class="muted small">Interview complete</p>
-        <div id="done-score" style="font-size:3rem; font-weight:800; line-height:1"></div>
-        <p id="done-best" class="small hidden"><span class="pill good">New personal best today 🎉</span></p>
-        <p id="done-summary" class="muted"></p>
+      <div class="card">
+        <div class="hero">
+          <div><div id="done-score" class="big"></div><div class="tiny muted" style="text-align:center">out of 100</div></div>
+          <div style="flex:1; min-width:220px">
+            <div class="row" style="gap:8px"><span id="done-verdict" class="chip"></span><span id="done-best" class="chip good hidden">New personal best 🎉</span></div>
+            <p id="done-summary" class="muted" style="margin:8px 0 0"></p>
+          </div>
+        </div>
       </div>
       <div class="grid cols2">
-        <div class="card stack"><h3>Top strengths</h3><ul id="done-strengths" class="small"></ul></div>
-        <div class="card stack"><h3>Focus areas</h3><ul id="done-focus" class="small"></ul></div>
+        <div class="card stack"><h3>Top strengths</h3><ul id="done-strengths" class="small" style="margin:0; padding-left:18px"></ul></div>
+        <div class="card stack"><h3>Focus areas</h3><ul id="done-focus" class="small" style="margin:0; padding-left:18px"></ul></div>
       </div>
-      <div class="card stack"><h3>Delivery</h3><p id="done-soft" class="small muted"></p></div>
+      <div class="card stack"><h3>Delivery</h3><p id="done-soft" class="small muted" style="margin:0"></p></div>
       <div class="card stack">
         <h3>Question-by-question</h3>
-        <div id="done-per" class="tablewrap"></div>
+        <div id="done-per" class="stack"></div>
       </div>
-      <div class="row">
+      <div class="row no-print">
+        <button id="download-btn" class="btn secondary">⬇ Download report</button>
         <button id="again-btn" class="btn">Practice again</button>
       </div>
     </section>
@@ -122,6 +149,7 @@
   <script src="assets/js/config.js"></script>
   <script src="assets/js/api.js"></script>
   <script src="assets/js/stt.js"></script>
+  <script src="assets/js/report.js"></script>
   <script src="assets/js/app.js"></script>
 </body>
 </html>

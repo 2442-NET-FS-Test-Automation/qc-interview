@@ -39,6 +39,7 @@ window.API = (function () {
     startInterview: (opts) => req("POST", "/interview/start", Object.assign({ passcode: LS.code }, opts)),
     judge: (payload) => req("POST", "/judge", payload),
     finish: (interviewId) => req("POST", "/interview/finish", { interviewId }),
+    myHistory: () => req("POST", "/my/history", { passcode: LS.code }),
     async transcribe(blob) {
       return req("POST", "/transcribe", blob, { raw: true, contentType: blob.type || "audio/webm" });
     },
