@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QC Interview — Trainer</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%8A%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="assets/css/theme.css" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <span class="brand">📊 Trainer Dashboard</span>
+      <span class="row">
+        <span id="who" class="small muted"></span>
+        <button id="logout" class="btn ghost small">Log out</button>
+      </span>
+    </div>
+
+    <!-- Invite -->
+    <div class="card stack">
+      <h2>Invite trainees</h2>
+      <p class="muted small">Paste one email or many (commas, spaces, or new lines). Each gets a unique passcode and a login link by email. Re-inviting an existing email resets their passcode.</p>
+      <textarea id="emails" placeholder="alex@example.com, sam@example.com&#10;jordan@example.com"></textarea>
+      <div class="grid cols2">
+        <div><label for="inv-cohort">Cohort (optional)</label><input id="inv-cohort" type="text" placeholder="e.g. 2442" /></div>
+        <div><label for="inv-role">Role</label><select id="inv-role"><option value="learner">Learner</option><option value="trainer">Trainer</option><option value="practice">Practice</option></select></div>
+      </div>
+      <div class="row"><button id="invite-btn" class="btn">Send invites</button><span id="invite-status" class="small muted"></span></div>
+      <div id="invite-results" class="small"></div>
+    </div>
+
+    <!-- Roster -->
+    <div class="card stack">
+      <div class="row between"><h2 style="margin:0">Trainees</h2><button id="refresh" class="btn ghost small">↻ Refresh</button></div>
+      <div id="roster-status" class="small muted">Loading…</div>
+      <div class="tablewrap"><table id="roster">
+        <thead><tr><th>Name</th><th>Cohort</th><th>Best score</th><th>Last interview</th><th>Days done</th><th>Open weak topics</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+
+    <!-- Detail drawer -->
+    <div id="detail" class="card stack hidden">
+      <div class="row between">
+        <h2 id="detail-name" style="margin:0"></h2>
+        <button id="detail-close" class="btn ghost small">Close</button>
+      </div>
+      <div class="row"><button id="gen-report" class="btn secondary small">Generate fresh report</button><span id="report-status" class="small muted"></span></div>
+      <div id="report-body" class="stack"></div>
+      <h3>Interview history</h3>
+      <div id="history-body" class="tablewrap small"></div>
+    </div>
+  </div>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/trainer.js"></script>
+</body>
+</html>
