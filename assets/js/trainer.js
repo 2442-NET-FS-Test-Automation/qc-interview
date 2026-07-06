@@ -13,6 +13,7 @@
 
   // Cache history-by-name so "last interview" column can be filled + drawer reuse.
   let lastByName = {};
+  let rosterLearners = [];  // current roster order (index-addressed by the View buttons)
 
   // ---- invite ----
   $("invite-btn").addEventListener("click", async () => {
@@ -55,6 +56,7 @@
         const ta = (lastByName[a.name][0] || {}).at || ""; const tb = (lastByName[b.name][0] || {}).at || "";
         return tb.localeCompare(ta);
       });
+      rosterLearners = learners;
       const tb = $("roster").querySelector("tbody");
       tb.innerHTML = learners.map((l, i) => {
         const hist = lastByName[l.name] || [];
@@ -68,10 +70,10 @@
           "<td>" + (last ? fmtDate(last.at) + " <span class='score " + scoreClass(last.score) + "'>(" + last.score + ")</span>" : "—") + "</td>" +
           "<td>" + (l.daysCompleted != null ? l.daysCompleted : "—") + "</td>" +
           "<td>" + weak + "</td>" +
-          "<td><button class='btn ghost small' data-open='" + esc(l.name) + "'>View</button></td></tr>";
+          "<td><button class='btn ghost small' data-open='" + i + "'>View</button></td></tr>";
       }).join("");
       $("roster-status").textContent = learners.length + " trainee(s). ⭐ = most recently active.";
-      tb.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => openDetail(b.getAttribute("data-open"))));
+      tb.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => { const l = rosterLearners[+b.dataset.open]; if (l) openDetail(l.name); }));
     } catch (e) { $("roster-status").textContent = "Couldn't reach the server."; }
   }
   $("refresh").addEventListener("click", loadRoster);
