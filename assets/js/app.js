@@ -69,33 +69,41 @@
     }));
   })();
 
-  // ---- build Day cards ----
-  (function buildDays() {
-    $("day-weeks").innerHTML = (CONFIG.CURRICULUM || []).map((w) => {
-      const cards = (w.days || []).map((d) => {
-        const chips = d.topics.slice(0, 3).map((t) => "<span class='chip'>" + esc(t) + "</span>").join("") +
-          (d.topics.length > 3 ? "<span class='chip'>+" + (d.topics.length - 3) + "</span>" : "");
-        return "<button class='selcard' data-day='" + esc(d.id) + "'>" +
-          "<div class='row' style='gap:10px'><span class='code'>D" + d.d + "</span></div>" +
-          "<div class='title'>" + esc(d.title) + "</div>" +
-          "<div class='chips'>" + chips + "</div></button>";
-      }).join("");
-      return "<div><div class='tiny muted' style='text-transform:uppercase; letter-spacing:.05em; margin:4px 2px 8px'>" + esc(w.label) + "</div><div class='cards'>" + cards + "</div></div>";
-    }).join("");
-    $("day-weeks").querySelectorAll("[data-day]").forEach((b) => b.addEventListener("click", () => {
-      let day = null, wk = null;
-      for (const w of CONFIG.CURRICULUM) { const dd = w.days.find((x) => x.id === b.dataset.day); if (dd) { day = dd; wk = w; break; } }
-      selectCard(b, "day-weeks");
-      sel = { mode: "day", day: day.id, week: wk.week, title: "Week " + wk.week + " · Day " + day.d + " — " + day.title, topics: day.topics, statLabel: wk.label.split("·")[0].trim() };
-      fillExpect();
+  // ---- build Day picker: week tabs + one week's day cards ----
+  let activeWeek = (CONFIG.CURRICULUM && CONFIG.CURRICULUM[0]) ? CONFIG.CURRICULUM[0].week : 1;
+  (function buildWeekTabs() {
+    $("week-tabs").innerHTML = (CONFIG.CURRICULUM || []).map((w) =>
+      "<button data-week='" + w.week + "' aria-selected='" + (w.week === activeWeek) + "'>Week " + w.week + "</button>").join("");
+    $("week-tabs").querySelectorAll("[data-week]").forEach((b) => b.addEventListener("click", () => {
+      activeWeek = +b.dataset.week; renderWeek();
     }));
   })();
+  function renderWeek() {
+    $("week-tabs").querySelectorAll("[data-week]").forEach((b) => b.setAttribute("aria-selected", (+b.dataset.week === activeWeek)));
+    const w = CONFIG.CURRICULUM.find((x) => x.week === activeWeek);
+    if (!w) return;
+    $("day-cards").innerHTML = (w.days || []).map((d) => {
+      const chips = d.topics.slice(0, 3).map((t) => "<span class='chip'>" + esc(t) + "</span>").join("") +
+        (d.topics.length > 3 ? "<span class='chip'>+" + (d.topics.length - 3) + "</span>" : "");
+      return "<button class='selcard' data-day='" + esc(d.id) + "'>" +
+        "<span class='code'>Day " + d.d + "</span>" +
+        "<div class='title'>" + esc(d.title) + "</div>" +
+        "<div class='chips'>" + chips + "</div></button>";
+    }).join("");
+    $("day-cards").querySelectorAll("[data-day]").forEach((b) => b.addEventListener("click", () => {
+      const dd = w.days.find((x) => x.id === b.dataset.day);
+      selectCard(b, "day-cards");
+      sel = { mode: "day", day: dd.id, week: w.week, title: "Week " + w.week + " · Day " + dd.d + " — " + dd.title, topics: dd.topics, statLabel: "Week " + w.week };
+      fillExpect();
+    }));
+  }
+  renderWeek();
 
   function selectCard(btn, containerId) {
     $(containerId).querySelectorAll(".selcard").forEach((c) => c.setAttribute("aria-pressed", "false"));
     btn.setAttribute("aria-pressed", "true");
   }
-  function clearSelection() { sel = null; hide($("expect")); document.querySelectorAll(".selcard").forEach((c) => c.setAttribute("aria-pressed", "false")); }
+  function clearSelection() { sel = null; hide($("expect")); show($("expect-empty")); document.querySelectorAll(".selcard").forEach((c) => c.setAttribute("aria-pressed", "false")); }
 
   function fillExpect() {
     $("expect-title").textContent = sel.title;
@@ -106,8 +114,7 @@
     const btn = $("start-btn");
     if (!attemptsLeft()) { btn.disabled = true; btn.textContent = "No attempts left today"; }
     else { btn.disabled = false; btn.textContent = "Start interview →"; }
-    hide($("pick-err")); show($("expect"));
-    $("expect").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    hide($("pick-err")); hide($("expect-empty")); show($("expect"));
   }
 
   function pickErr(msg) { const e = $("pick-err"); e.textContent = msg; show(e); }

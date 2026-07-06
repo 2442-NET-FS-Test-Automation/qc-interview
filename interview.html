@@ -39,32 +39,38 @@
         </div>
       </div>
 
-      <!-- QC panel -->
-      <div id="panel-qc" class="stack">
-        <p class="small muted" style="margin:0 2px">Take a full exam for one competency area.</p>
-        <div id="qc-cards" class="cards"></div>
-      </div>
-
-      <!-- Day panel -->
-      <div id="panel-day" class="stack hidden">
-        <p class="small muted" style="margin:0 2px">Practice a specific curriculum day. It loads that day's topics first, then earlier material — and questions from topics you were weak on before resurface automatically.</p>
-        <div id="day-weeks" class="stack"></div>
-      </div>
-
-      <!-- what-to-expect + start -->
-      <div id="expect" class="expect stack hidden">
-        <div class="row between">
-          <h2 id="expect-title" style="margin:0"></h2>
-          <span id="expect-badge" class="chip accent"></span>
+      <div class="picker">
+        <div class="picker-main">
+          <!-- QC panel -->
+          <div id="panel-qc">
+            <p class="small muted" style="margin:0 0 12px">Take a full exam for one competency area.</p>
+            <div id="qc-cards" class="cards"></div>
+          </div>
+          <!-- Day panel -->
+          <div id="panel-day" class="hidden">
+            <p class="small muted" style="margin:0 0 12px">Practice a specific curriculum day — it loads that day's topics first, then earlier material, and questions you were weak on resurface automatically.</p>
+            <div id="week-tabs" class="weektabs" role="tablist" aria-label="Week"></div>
+            <div id="day-cards" class="cards"></div>
+          </div>
         </div>
-        <div class="statstrip" id="expect-stats"></div>
-        <div>
-          <div class="tiny muted" style="text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px;">Topics you can expect</div>
-          <div id="expect-topics" class="chips"></div>
-        </div>
-        <div class="note info small">Answers are <strong>spoken</strong>. You can edit the transcript only to fix speech-to-text mistakes — don't rewrite your answer, as the feedback is on what you actually said.</div>
-        <button id="start-btn" class="btn big">Start interview →</button>
-        <p id="pick-err" class="small hidden" style="color: var(--bad); margin:0"></p>
+
+        <aside class="picker-rail">
+          <div id="expect-empty" class="expect muted small">Pick a competency or a day to see what you'll practice.</div>
+          <div id="expect" class="expect stack hidden">
+            <div>
+              <span id="expect-badge" class="chip accent"></span>
+              <h2 id="expect-title" style="margin:6px 0 0; font-size:1.05rem"></h2>
+            </div>
+            <div class="statstrip" id="expect-stats"></div>
+            <div>
+              <div class="tiny muted" style="text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px;">Topics to expect</div>
+              <div id="expect-topics" class="chips"></div>
+            </div>
+            <div class="note info tiny">Answers are <strong>spoken</strong>. Edit the transcript only to fix speech-to-text errors — don't rewrite your answer.</div>
+            <button id="start-btn" class="btn big block">Start interview →</button>
+            <p id="pick-err" class="small hidden" style="color: var(--bad); margin:0"></p>
+          </div>
+        </aside>
       </div>
 
       <!-- past reports -->
