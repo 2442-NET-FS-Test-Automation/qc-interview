@@ -48,10 +48,17 @@
         <h2 id="detail-name" style="margin:0"></h2>
         <button id="detail-close" class="btn ghost small">Close</button>
       </div>
-      <div class="row"><button id="gen-report" class="btn secondary small">Generate fresh report</button><span id="report-status" class="small muted"></span></div>
-      <div id="report-body" class="stack"></div>
-      <h3>Interview history</h3>
-      <div id="history-body" class="tablewrap small"></div>
+      <div class="segmented" role="tablist" aria-label="Trainee view">
+        <button id="dtab-overall" role="tab" aria-selected="true">Overall</button>
+        <button id="dtab-history" role="tab" aria-selected="false">History</button>
+      </div>
+      <div id="dpane-overall" class="stack">
+        <div class="row"><button id="gen-report" class="btn secondary small">Generate overall report</button><span id="report-status" class="small muted"></span></div>
+        <div id="report-body" class="stack"></div>
+      </div>
+      <div id="dpane-history" class="stack hidden">
+        <div id="history-body"></div>
+      </div>
     </div>
   </div>
 
