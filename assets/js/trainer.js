@@ -24,7 +24,7 @@
     const btn = $("invite-btn"); btn.disabled = true; $("invite-status").textContent = "Sending…";
     try {
       const r = await API.invite({ emails, role, cohort });
-      if (!r || !r.ok) { $("invite-status").textContent = r && r.error === "no_valid_emails" ? "No valid emails found." : "Invite failed."; return; }
+      if (!r || !r.ok) { $("invite-status").textContent = r && r.error === "no_valid_emails" ? "No valid emails found." : ("Invite failed" + (r && r.error ? " (" + r.error + ")" : "") + "."); return; }
       $("invite-status").textContent = r.count + " processed.";
       $("invite-results").innerHTML = "<table><thead><tr><th>Email</th><th>Name</th><th>Status</th><th>Passcode</th></tr></thead><tbody>" +
         r.results.map((x) => {
