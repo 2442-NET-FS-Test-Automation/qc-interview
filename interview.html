@@ -32,6 +32,13 @@
         </div>
       </div>
 
+      <div id="resume-banner" class="note info hidden">
+        <div class="row between">
+          <span>⏸️ You have an interview in progress — <strong id="resume-info"></strong>. Your answered questions are saved.</span>
+          <span class="row"><button id="resume-btn" class="btn small">Resume</button><button id="discard-btn" class="btn ghost small">Discard</button></span>
+        </div>
+      </div>
+
       <div style="display:flex; justify-content:center;">
         <div class="segmented" role="tablist" aria-label="Practice mode">
           <button id="seg-qc"  role="tab" aria-selected="true">QC Competency</button>
@@ -85,7 +92,7 @@
       <div class="card stack">
         <div class="row between">
           <span id="run-label" class="chip accent"></span>
-          <span id="run-count" class="small muted"></span>
+          <span class="row"><span id="run-count" class="small muted"></span><button id="finish-early-btn" class="btn ghost small">Finish early</button></span>
         </div>
         <div class="progress"><i id="run-bar" style="width:0%"></i></div>
         <div class="qmeta">
@@ -106,23 +113,13 @@
           <textarea id="transcript" placeholder="Your transcribed answer appears here."></textarea>
           <div class="note small">✏️ Edit only to fix <strong>speech-to-text errors</strong> (words the transcriber misheard). Don't rewrite your answer to improve it — the feedback is on what you actually said.</div>
           <div class="row">
-            <button id="submit-btn" class="btn">Submit answer</button>
+            <button id="submit-btn" class="btn">Submit &amp; continue →</button>
             <button id="rerecord-btn" class="btn secondary">Re-record</button>
           </div>
+          <p class="tiny muted" style="margin:0">Your answer is graded in the background — you'll see all feedback and your score at the end.</p>
         </div>
       </div>
-
-      <div id="fb-card" class="card stack hidden">
-        <div class="row between">
-          <h3 style="margin:0">Feedback</h3>
-          <span id="fb-score" class="score"></span>
-        </div>
-        <div class="dims" id="fb-dims"></div>
-        <div id="fb-strengths"></div>
-        <div id="fb-improvements"></div>
-        <details><summary class="small muted" style="cursor:pointer">Show a strong model answer</summary><p id="fb-model" class="small" style="margin-top:8px"></p></details>
-        <button id="next-btn" class="btn">Next question →</button>
-      </div>
+      <p id="grading-note" class="small muted hidden" style="text-align:center"><span class="spinner"></span> Grading in the background…</p>
     </section>
 
     <!-- ===== Screen 3: results ===== -->

@@ -18,7 +18,28 @@
   let quota = { practice: true, remaining: 99, max: 4 };
   let lastReport = null;       // built at finish for download
   let last = null;             // {blob, durationMs}
+  let pending = [];            // in-flight background judge promises
   const recorder = QCRecorder.create();
+
+  // ---- resume persistence ----
+  // An in-progress interview is saved so a refresh/crash/lost connection doesn't lose
+  // it (and doesn't re-spend OpenAI calls on already-answered questions — those are
+  // graded server-side). Valid for ~6h (matches the server-side interview TTL).
+  const RESUME_KEY = "qc_active_" + API.LS.code;
+  const RESUME_TTL = 6 * 60 * 60 * 1000;
+  function saveActive() {
+    if (!interviewId || !sel) return;
+    try { localStorage.setItem(RESUME_KEY, JSON.stringify({ interviewId, questions, cur, sel: { title: sel.title, mode: sel.mode, qc: sel.qc, day: sel.day, week: sel.week }, at: Date.now() })); } catch (e) {}
+  }
+  function clearActive() { try { localStorage.removeItem(RESUME_KEY); } catch (e) {} }
+  function loadActive() {
+    try {
+      const raw = localStorage.getItem(RESUME_KEY); if (!raw) return null;
+      const a = JSON.parse(raw);
+      if (!a || !a.interviewId || !Array.isArray(a.questions) || (Date.now() - (a.at || 0)) > RESUME_TTL) { clearActive(); return null; }
+      return a;
+    } catch (e) { return null; }
+  }
 
   // ---- quota ----
   async function loadQuota() {
@@ -128,13 +149,13 @@
     try {
       const r = await API.startInterview(opts);
       if (!r || !r.ok) { pickErr(r && r.error === "cap_reached" ? "You've hit today's attempt limit." : "Couldn't start the interview. Try again."); btn.disabled = false; btn.textContent = "Start interview →"; return; }
-      questions = r.questions || []; interviewId = r.interviewId; cur = 0;
+      questions = r.questions || []; interviewId = r.interviewId; cur = 0; pending = [];
       if (!questions.length) { pickErr("No questions available for that selection yet."); btn.disabled = false; btn.textContent = "Start interview →"; return; }
-      screen("run"); renderQuestion();
+      hide($("grading-note")); saveActive(); screen("run"); renderQuestion();
     } catch (e) { pickErr("Couldn't reach the server. Check your connection."); btn.disabled = false; btn.textContent = "Start interview →"; }
   });
 
-  const TOPIC_LABEL = {};
+  const TOPIC_LABEL = { "web-frontend": "Web", "react-msa": "React / MSA", "dotnet-testing": "Testing", "selenium-azure": "Selenium / Azure", "devops": "DevOps", "ai-engineering": "AI" };
   (CONFIG.QC_MODULES || []).forEach((m) => { TOPIC_LABEL[m.topic] = m.code; });
 
   function renderQuestion() {
@@ -145,8 +166,9 @@
     $("q-topic").textContent = TOPIC_LABEL[q.topic] || q.topic;
     $("q-type").textContent = q.type === "scenario" ? "Applied scenario" : "Concept";
     $("q-prompt").textContent = q.prompt;
-    hide($("fb-card")); show($("answer-card")); hide($("transcript-block")); hide($("transcribe-status"));
+    show($("answer-card")); hide($("transcript-block")); hide($("transcribe-status"));
     $("transcript").value = ""; $("rec-state").textContent = "";
+    const sub = $("submit-btn"); sub.disabled = false; sub.textContent = (cur + 1 >= questions.length) ? "Submit & finish →" : "Submit & continue →";
     const recBtn = $("rec-btn"); recBtn.textContent = "● Record answer"; recBtn.disabled = false; recBtn.classList.remove("danger"); show(recBtn);
     if (!QCRecorder.supported()) { show($("transcript-block")); hide(recBtn); }
   }
@@ -179,49 +201,48 @@
     finally { hide($("transcribe-status")); show($("transcript-block")); }
   }
 
-  // ---- submit ----
-  $("submit-btn").addEventListener("click", async () => {
+  // ---- submit (async background grading) ----
+  // Fire the grade in the background and advance immediately — the learner never waits
+  // between questions, and all feedback + the overall are shown together at the end.
+  $("submit-btn").addEventListener("click", () => {
     const q = questions[cur]; const text = ($("transcript").value || "").trim();
     if (!text) { $("rec-state").textContent = "Please record or type an answer first."; return; }
-    const btn = $("submit-btn"); btn.disabled = true; btn.textContent = "Scoring…";
     const delivery = QCRecorder.metrics(text, last ? last.durationMs : null);
-    try {
-      const r = await API.judge({ interviewId, questionId: q.id, transcript: text, delivery });
-      if (!r || !r.ok) { $("rec-state").textContent = "Scoring failed — try submitting again."; return; }
-      showFeedback(r);
-    } catch (e) { $("rec-state").textContent = "Couldn't reach the server — try again."; }
-    finally { btn.disabled = false; btn.textContent = "Submit answer"; }
+    pending.push(API.judge({ interviewId, questionId: q.id, transcript: text, delivery }).catch(() => null));
+    show($("grading-note"));
+    advance();
   });
 
-  function dimBars(dims) {
-    return Object.keys(dims || {}).map((k) => {
-      const v = dims[k];
-      return "<div class='dimrow'><span class='muted' style='text-transform:capitalize'>" + esc(k) + "</span>" +
-        "<span class='track'><i class='" + scoreClass(v) + "' style='width:" + v + "%'></i></span><span class='score " + scoreClass(v) + "'>" + v + "</span></div>";
-    }).join("");
+  function advance() {
+    cur++; saveActive();
+    if (cur >= questions.length) finish();
+    else renderQuestion();
   }
-  function showFeedback(r) {
-    hide($("answer-card")); const fb = $("fb-card"); show(fb);
-    const sc = $("fb-score"); sc.textContent = r.score + " / 100"; sc.className = "score " + scoreClass(r.score);
-    $("fb-dims").innerHTML = dimBars(r.dims);
-    $("fb-strengths").innerHTML = (r.strengths && r.strengths.length) ? "<strong class='small'>Strengths</strong><ul class='small' style='margin:4px 0'>" + r.strengths.map((x) => "<li>" + esc(x) + "</li>").join("") + "</ul>" : "";
-    $("fb-improvements").innerHTML = (r.improvements && r.improvements.length) ? "<strong class='small'>To improve</strong><ul class='small' style='margin:4px 0'>" + r.improvements.map((x) => "<li>" + esc(x) + "</li>").join("") + "</ul>" : "";
-    $("fb-model").textContent = r.modelAnswer || "";
-    $("next-btn").textContent = (cur + 1 >= questions.length) ? "See results →" : "Next question →";
-    fb.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-  $("next-btn").addEventListener("click", async () => { cur++; if (cur >= questions.length) await finish(); else renderQuestion(); });
+
+  // ---- finish early ----
+  $("finish-early-btn").addEventListener("click", () => {
+    const remaining = questions.length - cur;
+    if (remaining > 0 && !confirm(
+      "Finish now and see your report?\n\n" + remaining + " remaining question" + (remaining === 1 ? "" : "s") +
+      " will be scored as no response, which lowers your overall score.")) return;
+    finish();
+  });
 
   // ---- finish / results ----
+  let finishing = false;
   async function finish() {
-    recorder.release(); screen("done"); $("done-summary").textContent = "Tallying your results…";
+    if (finishing) return; finishing = true;
+    recorder.release(); clearActive(); screen("done");
+    $("done-summary").innerHTML = "<span class='spinner'></span> Grading your answers…";
     try {
+      if (pending.length) await Promise.allSettled(pending);   // let background grades land
       const r = await API.finish(interviewId);
-      if (!r || !r.ok) { $("done-summary").textContent = "Couldn't load your summary, but your answers were saved."; return; }
+      if (!r || !r.ok) { $("done-summary").textContent = "Couldn't load your summary, but your answers were saved."; finishing = false; return; }
       lastReport = { at: new Date().toISOString(), qc: sel && sel.qc, day: sel && sel.day, week: sel && sel.week, score: r.interviewScore, overall: r.overall, perQuestion: r.perQuestion };
       renderResults(r);
       loadQuota();     // refresh remaining attempts
     } catch (e) { $("done-summary").textContent = "Couldn't reach the server for the summary."; }
+    finishing = false;
   }
   function renderResults(r) {
     const o = r.overall || {};
@@ -262,8 +283,23 @@
     } catch (e) { hide($("past-card")); }
   }
 
+  // ---- resume an in-progress interview ----
+  function initResume() {
+    const a = loadActive();
+    if (!a) return;
+    show($("resume-banner"));
+    $("resume-info").textContent = (a.sel && a.sel.title ? a.sel.title + " · " : "") + "Question " + (a.cur + 1) + " of " + a.questions.length;
+    $("resume-btn").onclick = () => {
+      questions = a.questions; interviewId = a.interviewId; cur = a.cur; pending = [];
+      sel = a.sel || { title: "Interview" };
+      hide($("resume-banner")); hide($("grading-note")); screen("run"); renderQuestion();
+    };
+    $("discard-btn").onclick = () => { clearActive(); hide($("resume-banner")); };
+  }
+
   // ---- init ----
   setMode("qc");
   loadQuota();
   loadPast();
+  initResume();
 })();
