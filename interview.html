@@ -12,6 +12,10 @@
   <div class="wrap">
     <div class="topbar">
       <span class="brand">🎤 .NET Practice Interview</span>
+      <nav class="navtabs">
+        <button id="nav-practice" class="navtab" aria-selected="true">Practice</button>
+        <button id="nav-past" class="navtab" aria-selected="false">Past reports</button>
+      </nav>
       <span class="row">
         <span id="who" class="small muted"></span>
         <a id="dash-link" href="trainer.html" class="btn ghost small hidden">← Dashboard</a>
@@ -79,12 +83,6 @@
           </div>
         </aside>
       </div>
-
-      <!-- past reports -->
-      <div id="past-card" class="card stack hidden">
-        <h2 style="margin:0">Your past interviews</h2>
-        <div id="past-list" class="stack"></div>
-      </div>
     </section>
 
     <!-- ===== Screen 2: runner ===== -->
@@ -125,12 +123,21 @@
     <!-- ===== Screen 3: results ===== -->
     <section id="screen-done" class="stack hidden">
       <div class="card">
-        <div class="hero">
-          <div><div id="done-score" class="big"></div><div class="tiny muted" style="text-align:center">out of 100</div></div>
-          <div style="flex:1; min-width:220px">
-            <div class="row" style="gap:8px"><span id="done-verdict" class="chip"></span><span id="done-best" class="chip good hidden">New personal best 🎉</span></div>
-            <p id="done-summary" class="muted" style="margin:8px 0 0"></p>
+        <div class="results-top">
+          <div class="results-main">
+            <div class="hero">
+              <div><div id="done-score" class="big"></div><div class="tiny muted" style="text-align:center">out of 100</div></div>
+              <div style="flex:1; min-width:180px">
+                <div class="row" style="gap:8px"><span id="done-verdict" class="chip"></span><span id="done-best" class="chip good hidden">New personal best 🎉</span></div>
+                <p id="done-summary" class="muted" style="margin:8px 0 0"></p>
+              </div>
+            </div>
+            <div id="done-radar" class="radar-wrap"></div>
           </div>
+          <aside class="results-actions no-print">
+            <button id="again-btn" class="btn block">Practice again</button>
+            <button id="download-btn" class="btn secondary block">⬇ Download report</button>
+          </aside>
         </div>
       </div>
       <div class="grid cols2">
@@ -140,11 +147,17 @@
       <div class="card stack"><h3>Delivery</h3><p id="done-soft" class="small muted" style="margin:0"></p></div>
       <div class="card stack">
         <h3>Question-by-question</h3>
+        <p class="tiny muted" style="margin:0 0 8px">Tap a question to see its metrics and feedback.</p>
         <div id="done-per" class="stack"></div>
       </div>
-      <div class="row no-print">
-        <button id="download-btn" class="btn secondary">⬇ Download report</button>
-        <button id="again-btn" class="btn">Practice again</button>
+    </section>
+
+    <!-- ===== Screen 4: past reports (navbar tab) ===== -->
+    <section id="screen-past" class="stack hidden">
+      <div class="card stack">
+        <h2 style="margin:0">Your past interviews</h2>
+        <p class="small muted" style="margin:0">Every completed interview — tap one to see the full report, or download it.</p>
+        <div id="past-list" class="stack"><p class="muted small" id="past-empty">Loading…</p></div>
       </div>
     </section>
   </div>

@@ -168,6 +168,25 @@ tr:hover td { background: var(--surface-2); }
 .weektabs button:hover { border-color: var(--border-strong); color: var(--text); }
 .weektabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 
+/* navbar tabs */
+.navtabs { display: flex; gap: 4px; background: var(--surface-2); border-radius: 10px; padding: 3px; }
+.navtabs .navtab { border: none; background: transparent; color: var(--muted); font: inherit; font-weight: 600; font-size: .86rem;
+  padding: 7px 14px; border-radius: 8px; cursor: pointer; transition: background .15s, color .15s, box-shadow .15s; }
+.navtabs .navtab[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+@media (max-width: 620px) { .topbar { gap: 8px; } .navtabs .navtab { padding: 6px 10px; } }
+
+/* results top: main (hero + radar) | actions rail */
+.results-top { display: grid; grid-template-columns: minmax(0,1fr) 220px; gap: 22px; align-items: start; }
+.results-actions { display: flex; flex-direction: column; gap: 10px; }
+@media (max-width: 720px) { .results-top { grid-template-columns: 1fr; } .results-actions { flex-direction: row; } }
+.radar-wrap { display: flex; justify-content: center; margin-top: 8px; }
+
+/* expandable question cards */
+.qcard summary::-webkit-details-marker { display: none; }
+.qcard summary { position: relative; }
+.qcard summary::after { content: "▸"; color: var(--faint); margin-left: 6px; transition: transform .15s; }
+.qcard[open] summary::after { transform: rotate(90deg); }
+
 /* print (download report as PDF via browser print) */
 @media print {
   body { background: #fff; color: #000; }

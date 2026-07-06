@@ -5,12 +5,17 @@
   const show = (el) => el && el.classList.remove("hidden");
   const hide = (el) => el && el.classList.add("hidden");
   const esc = QCReport.esc, scoreClass = QCReport.scoreClass;
-  const screens = { pick: $("screen-pick"), run: $("screen-run"), done: $("screen-done") };
+  const screens = { pick: $("screen-pick"), run: $("screen-run"), done: $("screen-done"), past: $("screen-past") };
   function screen(name) { for (const k in screens) screens[k].classList.toggle("hidden", k !== name); window.scrollTo(0, 0); }
 
   $("who").textContent = API.LS.name ? "Signed in as " + API.LS.name : "";
   if (API.LS.role === "trainer") show($("dash-link"));
   $("logout").addEventListener("click", () => { API.logout(); location.href = "index.html"; });
+
+  // ---- navbar tabs ----
+  function setNav(tab) { $("nav-practice").setAttribute("aria-selected", tab === "practice"); $("nav-past").setAttribute("aria-selected", tab === "past"); }
+  $("nav-practice").addEventListener("click", () => { setNav("practice"); screen("pick"); });
+  $("nav-past").addEventListener("click", () => { setNav("past"); screen("past"); loadPast(); });
 
   // ---- state ----
   let questions = [], interviewId = null, cur = 0;
@@ -253,18 +258,19 @@
     $("done-strengths").innerHTML = (o.topStrengths || []).map((x) => "<li>" + esc(x) + "</li>").join("") || "<li class='muted'>—</li>";
     $("done-focus").innerHTML = (o.focusAreas || []).map((x) => "<li>" + esc(x) + "</li>").join("") || "<li class='muted'>—</li>";
     $("done-soft").textContent = o.softSkills || "—";
+    $("done-radar").innerHTML = QCReport.radarSVG(QCReport.aggregateDims(r.perQuestion));
     $("done-per").innerHTML = QCReport.perQuestionHTML(r.perQuestion);
   }
   $("download-btn").addEventListener("click", () => { if (lastReport) QCReport.download(lastReport, API.LS.name); });
-  $("again-btn").addEventListener("click", () => { screen("pick"); loadPast(); });
+  $("again-btn").addEventListener("click", () => { setNav("practice"); screen("pick"); });
 
   // ---- past interviews ----
   async function loadPast() {
+    $("past-list").innerHTML = "<p class='muted small'>Loading…</p>";
     try {
       const r = await API.myHistory();
       const hist = (r && r.ok && r.history) ? r.history : [];
-      if (!hist.length) { hide($("past-card")); return; }
-      show($("past-card"));
+      if (!hist.length) { $("past-list").innerHTML = "<p class='muted small'>No completed interviews yet. Finish one and it'll appear here.</p>"; return; }
       $("past-list").innerHTML = hist.map((h, i) =>
         "<div class='card' style='padding:14px'><div class='row between'>" +
         "<div><strong>" + esc(QCReport.labelFor(h)) + "</strong><div class='tiny muted'>" + esc(QCReport.fmtDate(h.at)) + "</div></div>" +
@@ -280,7 +286,7 @@
         box.classList.remove("hidden"); b.textContent = "Hide";
       }));
       $("past-list").querySelectorAll("[data-dl]").forEach((b) => b.addEventListener("click", () => QCReport.download(hist[+b.dataset.dl], API.LS.name)));
-    } catch (e) { hide($("past-card")); }
+    } catch (e) { $("past-list").innerHTML = "<p class='muted small'>Couldn't load your past interviews. Try again.</p>"; }
   }
 
   // ---- resume an in-progress interview ----
@@ -298,8 +304,8 @@
   }
 
   // ---- init ----
+  setNav("practice");
   setMode("qc");
   loadQuota();
-  loadPast();
   initResume();
 })();

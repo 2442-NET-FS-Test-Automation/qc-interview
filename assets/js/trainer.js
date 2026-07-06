@@ -110,13 +110,26 @@
     finally { $("gen-report").disabled = false; setTimeout(() => $("report-status").textContent = "", 2500); }
   });
 
+  // Each completed interview is expandable to the SAME full report a learner sees
+  // (radar + per-question metrics + feedback) and downloadable.
   function renderHistory(hist) {
     if (!hist || !hist.length) { $("history-body").innerHTML = "<p class='muted'>No completed interviews yet.</p>"; return; }
-    $("history-body").innerHTML = "<table><thead><tr><th>When</th><th>Mode</th><th>Score</th><th>Summary</th></tr></thead><tbody>" +
-      hist.map((h) => {
-        const mode = h.qc ? h.qc.toUpperCase() : (h.day || (h.week ? "Week " + h.week : "—"));
-        return "<tr><td>" + fmtDate(h.at) + "</td><td>" + esc(mode) + "</td><td class='score " + scoreClass(h.score) + "'>" + h.score + "</td><td>" + esc((h.summary || "").slice(0, 120)) + "</td></tr>";
-      }).join("") + "</tbody></table>";
+    $("history-body").innerHTML = hist.map((h, i) =>
+      "<div class='card' style='padding:14px; margin-bottom:8px'><div class='row between'>" +
+      "<div><strong>" + esc(QCReport.labelFor(h)) + "</strong><div class='tiny muted'>" + esc(QCReport.fmtDate(h.at)) + "</div></div>" +
+      "<div class='row'><span class='score " + (QCReport.scoreClass(h.score)) + "' style='font-size:1.2rem'>" + h.score + "</span>" +
+      "<button class='btn ghost small' data-thview='" + i + "'>View report</button>" +
+      "<button class='btn ghost small' data-thdl='" + i + "'>⬇</button></div></div>" +
+      "<div class='hidden' id='thd-" + i + "' style='margin-top:12px'></div></div>"
+    ).join("");
+    $("history-body").querySelectorAll("[data-thview]").forEach((b) => b.addEventListener("click", () => {
+      const i = +b.dataset.thview, box = document.getElementById("thd-" + i);
+      if (!box.classList.contains("hidden")) { box.classList.add("hidden"); b.textContent = "View report"; return; }
+      box.innerHTML = QCReport.summaryHTML(hist[i]) +
+        "<h4 style='margin:12px 0 6px'>Question-by-question</h4><div class='stack'>" + QCReport.perQuestionHTML(hist[i].perQuestion) + "</div>";
+      box.classList.remove("hidden"); b.textContent = "Hide report";
+    }));
+    $("history-body").querySelectorAll("[data-thdl]").forEach((b) => b.addEventListener("click", () => QCReport.download(hist[+b.dataset.thdl], currentName)));
   }
 
   loadRoster();
